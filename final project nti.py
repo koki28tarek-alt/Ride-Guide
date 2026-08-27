@@ -3,7 +3,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 import os
 import joblib
@@ -89,23 +93,41 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled  = scaler.transform(x_test)
 print(f'Train size : {X_train.shape[0]} rows')
 print(f'Test  size : {x_test.shape[0]} rows')
- 
-model = RandomForestClassifier(n_estimators=100, max_depth=5, min_samples_leaf=10,
-                                class_weight='balanced', random_state=42)
-model.fit(X_train_scaled, Y_train)
- 
-# Evaluate on the test set
+
+candidate_models = {
+    'RandomForest': RandomForestClassifier(n_estimators=100, max_depth=5, min_samples_leaf=10,
+                                            class_weight='balanced', random_state=42),
+    'DecisionTree': DecisionTreeClassifier(max_depth=5, min_samples_leaf=10,
+                                            class_weight='balanced', random_state=42),
+    'GradientBoosting': GradientBoostingClassifier(n_estimators=100, max_depth=3, random_state=42),
+    'LogisticRegression': LogisticRegression(max_iter=1000, class_weight='balanced', random_state=42),
+    'SVM': SVC(kernel='rbf', class_weight='balanced', random_state=42),
+    'KNN': KNeighborsClassifier(n_neighbors=7),
+}
+
+results = {}
+for name, clf in candidate_models.items():
+    clf.fit(X_train_scaled, Y_train)
+    preds = clf.predict(X_test_scaled)
+    acc_score = accuracy_score(y_test, preds)
+    results[name] = acc_score
+    print(f'{name:20s} accuracy: {acc_score:.4f}')
+
+best_name = max(results, key=results.get)
+model = candidate_models[best_name]
+print(f'\nBest model: {best_name}  (accuracy: {results[best_name]:.4f})')
+
 y_pred = model.predict(X_test_scaled)
 acc = accuracy_score(y_test, y_pred)
- 
+
 print(f'Accuracy Score : {acc:.4f}   (1.0 = perfect)')
 print()
 print(classification_report(y_test, y_pred))
 cm = confusion_matrix(y_test, y_pred, labels=model.classes_)
- 
+
 plt.figure(figsize=(6, 5))
 plt.imshow(cm, cmap='Blues')
-plt.title('Actual vs Predicted Fuel Type')
+plt.title(f'Actual vs Predicted Fuel Type ({best_name})')
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
 plt.xticks(range(len(model.classes_)), model.classes_, rotation=45)
@@ -129,6 +151,7 @@ joblib.dump(list(x.columns), 'models/columns.pkl')
 joblib.dump(list(model.classes_), 'models/classes.pkl')
  
 print('Saved:')
+print(f'   (best model was: {best_name})')
 for f in os.listdir('models'):
     if f.endswith('.pkl'):
         size = os.path.getsize(f'models/{f}')
@@ -145,4 +168,3 @@ sample = pd.DataFrame([{
  
 fuel_type = m.predict(s.transform(sample))[0]
 print(f'Sample prediction: {fuel_type}  (sanity check passed)')
- 
